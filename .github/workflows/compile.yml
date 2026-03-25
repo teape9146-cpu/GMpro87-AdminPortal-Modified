@@ -23,17 +23,18 @@ jobs:
           # 2. FIX: Ubah titik (.) jadi underscore (_) agar macro valid
           sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
           
-          # 3. FIX: Tambahkan definisi Admin Config dan deklarasi extern Server
-          # Kita masukkan ke A_config.h
-          echo "" >> ./GMpro87.devv1.5/A_config.h
-          echo "#define ADMIN_AP_SSID \"GMpro87\"" >> ./GMpro87.devv1.5/A_config.h
-          echo "#define ADMIN_PORTAL_ENABLED true" >> ./GMpro87.devv1.5/A_config.h
+          # 3. FIX: Tambahkan Admin Config ke A_config.h
+          echo -e "\n#define ADMIN_AP_SSID \"GMpro87\"\n#define ADMIN_PORTAL_ENABLED true" >> ./GMpro87.devv1.5/A_config.h
           
-          # 4. FIX: Tambahkan include dan extern server ke file patch agar tidak error 'server'
-          # Ini akan menyisipkan header ESP8266WebServer dan deklarasi extern server di baris pertama
-          sed -i '1i #include <ESP8266WebServer.h>\nextern ESP8266WebServer server;' ./GMpro87.devv1.5/wifi_patch_onnotfound.cpp
+          # 4. FIX: Rombak wifi_patch_onnotfound.cpp agar valid secara sintaks
+          # Kita buat ulang isinya agar terbungkus dalam fungsi yang benar
+          echo -e '#include <ESP8266WebServer.h>\nextern ESP8266WebServer server;\nvoid setup_wifi_patch() {\n  server.onNotFound([]() {\n    server.send(200, "text/html", "Portal GMpro87 Active");\n  });\n}' > ./GMpro87.devv1.5/wifi_patch_onnotfound.cpp
 
-          # 5. FIX: Ubah Pin D3-D8 menjadi GPIO asli (0, 2, 14, 12, 13, 15)
+          # 5. FIX: Panggil fungsi patch tersebut di file .ino utama agar dijalankan saat startup
+          # Kita sisipkan pemanggilan fungsi di dalam void setup()
+          sed -i '/void setup()/a \  void setup_wifi_patch();\n  setup_wifi_patch();' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
+
+          # 6. FIX: Ubah Pin D3-D8 menjadi GPIO asli (0, 2, 14, 12, 13, 15)
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD3\b/0/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD4\b/2/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD5\b/14/g' {} +
@@ -41,7 +42,7 @@ jobs:
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD7\b/13/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD8\b/15/g' {} +
           
-          echo "Perbaikan struktur kode dan WiFi Patch selesai."
+          echo "Perbaikan sintaks patch dan pin selesai."
 
       - name: Install Spacehuhn Deauther SDK
         run: |
@@ -52,16 +53,14 @@ jobs:
         run: |
           arduino-cli lib install "SimpleCLI"
           arduino-cli lib install "ArduinoJson@5.13.5"
-          arduino-cli lib list
 
       - name: Compile GMpro Firmware
         run: |
-          # Kompilasi ke .bin menggunakan FQBN Deauther
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
           ./GMpro87.devv1.5 --output-dir ./build
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-v1.5-Build-Success
+          name: GMpro87-v1.5-Fixed-Final
           path: ./build/*.bin

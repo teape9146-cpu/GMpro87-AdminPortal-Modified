@@ -20,18 +20,24 @@ jobs:
           INO_DIR=$(dirname "$INO_PATH")
           mv "$INO_DIR" ./GMpro87.devv1.5
           
-          # 2. FIX: Ubah titik (.) jadi underscore (_) di A_config.h
+          # 2. FIX: Ubah titik (.) jadi underscore (_) agar macro valid
           sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
           
-          # 3. FIX: Ubah Pin D3-D7 menjadi GPIO asli agar Generic ESP8266 paham
-          # Kita lakukan di semua file .h dan .ino
-          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD3\b/0/g' {} +
-          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD4\b/2/g' {} +
-          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD5\b/14/g' {} +
-          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD6\b/12/g' {} +
-          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD7\b/13/g' {} +
+          # 3. FIX: Tambahkan definisi yang hilang untuk Admin Portal jika tidak ada
+          # Kita masukkan langsung ke A_config.h agar dibaca oleh settings.cpp
+          echo "" >> ./GMpro87.devv1.5/A_config.h
+          echo "#define ADMIN_AP_SSID \"GMpro87\"" >> ./GMpro87.devv1.5/A_config.h
+          echo "#define ADMIN_PORTAL_ENABLED true" >> ./GMpro87.devv1.5/A_config.h
           
-          echo "Perbaikan Pin D3-D7 selesai."
+          # 4. FIX: Ubah Pin D3-D8 menjadi GPIO asli
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD3\b/0/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD4\b/2/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD5\b/14/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD6\b/12/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD7\b/13/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD8\b/15/g' {} +
+          
+          echo "Perbaikan Pin D3-D8 dan Admin Config selesai."
 
       - name: Install Spacehuhn Deauther SDK
         run: |
@@ -46,12 +52,12 @@ jobs:
 
       - name: Compile GMpro Firmware
         run: |
-          # Kompilasi menggunakan FQBN stabil
+          # Kompilasi ke .bin menggunakan FQBN Deauther
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
           ./GMpro87.devv1.5 --output-dir ./build
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-v1.5-Fixed-Pin-Binary
+          name: GMpro87-v1.5-Final-Fixed
           path: ./build/*.bin

@@ -18,8 +18,6 @@ jobs:
           INO_PATH=$(find tmp_extract -name "GMpro87.devv1.5.ino")
           INO_DIR=$(dirname "$INO_PATH")
           mv "$INO_DIR" ./GMpro87.devv1.5
-          
-          # Hapus file patch eksternal agar tidak terjadi error linking
           rm -f ./GMpro87.devv1.5/wifi_patch_onnotfound.cpp
 
       - name: Fix Code Logic
@@ -27,13 +25,12 @@ jobs:
           # 1. Fix Macro Name (Titik ke Underscore)
           sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
           
-          # 2. Sisipkan Admin Config
-          echo -e "\n#define ADMIN_AP_SSID \"GMpro87\"\n#define ADMIN_PORTAL_ENABLED true" >> ./GMpro87.devv1.5/A_config.h
+          # 2. Tambahkan deklarasi extern dan logika onNotFound langsung ke .ino
+          # Pakai webServer (sesuai standar Deauther v2)
+          sed -i '1i #include <ESP8266WebServer.h>\nextern ESP8266WebServer webServer;' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
           
-          # 3. Sisipkan Logika onNotFound langsung ke dalam .ino utama
-          # Kita cari baris setup() dan masukkan perintah server disana
-          # Menggunakan 'server' (huruf kecil) sesuai error log sebelumnya
-          sed -i '/void setup()/a \  server.onNotFound([]() { server.send(200, "text/html", "Portal GMpro87 Active"); });' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
+          # 3. Sisipkan perintah di dalam setup(). Kita pakai [&] supaya webServer bisa diakses di dalam lambda.
+          sed -i '/void setup()/a \  webServer.onNotFound([&]() { webServer.send(200, "text/html", "Portal GMpro87 Active"); });' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
 
           # 4. Fix Pin D3-D8 (GPIO asli)
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD3\b/0/g' {} +
@@ -58,5 +55,5 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-v1.5-Final-Binary
+          name: GMpro87-v1.5-Fixed-Final
           path: ./build/*.bin

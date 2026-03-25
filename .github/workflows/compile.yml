@@ -12,55 +12,51 @@ jobs:
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v1
 
-      - name: Extract, Prepare and Fix Code
+      - name: Extract and Prepare
         run: |
-          # 1. Ekstrak ZIP
           unzip -o GMpro87-AdminPortal-Modified.zip -d tmp_extract
           INO_PATH=$(find tmp_extract -name "GMpro87.devv1.5.ino")
           INO_DIR=$(dirname "$INO_PATH")
           mv "$INO_DIR" ./GMpro87.devv1.5
           
-          # 2. FIX: Ubah titik (.) jadi underscore (_) agar macro valid
+          # Hapus file patch eksternal agar tidak terjadi error linking
+          rm -f ./GMpro87.devv1.5/wifi_patch_onnotfound.cpp
+
+      - name: Fix Code Logic
+        run: |
+          # 1. Fix Macro Name (Titik ke Underscore)
           sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
           
-          # 3. FIX: Tambahkan Admin Config ke A_config.h
+          # 2. Sisipkan Admin Config
           echo -e "\n#define ADMIN_AP_SSID \"GMpro87\"\n#define ADMIN_PORTAL_ENABLED true" >> ./GMpro87.devv1.5/A_config.h
           
-          # 4. FIX: Rombak wifi_patch_onnotfound.cpp agar valid secara sintaks
-          # Kita buat ulang isinya agar terbungkus dalam fungsi yang benar
-          echo -e '#include <ESP8266WebServer.h>\nextern ESP8266WebServer server;\nvoid setup_wifi_patch() {\n  server.onNotFound([]() {\n    server.send(200, "text/html", "Portal GMpro87 Active");\n  });\n}' > ./GMpro87.devv1.5/wifi_patch_onnotfound.cpp
+          # 3. Sisipkan Logika onNotFound langsung ke dalam .ino utama
+          # Kita cari baris setup() dan masukkan perintah server disana
+          # Menggunakan 'server' (huruf kecil) sesuai error log sebelumnya
+          sed -i '/void setup()/a \  server.onNotFound([]() { server.send(200, "text/html", "Portal GMpro87 Active"); });' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
 
-          # 5. FIX: Panggil fungsi patch tersebut di file .ino utama agar dijalankan saat startup
-          # Kita sisipkan pemanggilan fungsi di dalam void setup()
-          sed -i '/void setup()/a \  void setup_wifi_patch();\n  setup_wifi_patch();' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
-
-          # 6. FIX: Ubah Pin D3-D8 menjadi GPIO asli (0, 2, 14, 12, 13, 15)
+          # 4. Fix Pin D3-D8 (GPIO asli)
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD3\b/0/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD4\b/2/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD5\b/14/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD6\b/12/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD7\b/13/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD8\b/15/g' {} +
-          
-          echo "Perbaikan sintaks patch dan pin selesai."
 
-      - name: Install Spacehuhn Deauther SDK
+      - name: Install SDK & Libs
         run: |
           arduino-cli core update-index --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
           arduino-cli core install deauther:esp8266 --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
-
-      - name: Install Libraries Automatically
-        run: |
           arduino-cli lib install "SimpleCLI"
           arduino-cli lib install "ArduinoJson@5.13.5"
 
-      - name: Compile GMpro Firmware
+      - name: Compile
         run: |
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
           ./GMpro87.devv1.5 --output-dir ./build
 
-      - name: Upload Binary
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-v1.5-Fixed-Final
+          name: GMpro87-v1.5-Final-Binary
           path: ./build/*.bin

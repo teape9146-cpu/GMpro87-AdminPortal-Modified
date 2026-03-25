@@ -12,24 +12,26 @@ jobs:
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v1
 
-      - name: Extract and Prepare Folder
+      - name: Extract, Prepare and Fix Code
         run: |
-          # 1. Ekstrak ZIP ke folder sementara agar tidak berantakan
+          # 1. Ekstrak ZIP ke folder sementara
           unzip -o GMpro87-AdminPortal-Modified.zip -d tmp_extract
           
-          # 2. Cari di mana lokasi file .ino utama berada
-          # Nama file: GMpro87.devv1.5.ino
+          # 2. Cari lokasi file .ino utama
           INO_PATH=$(find tmp_extract -name "GMpro87.devv1.5.ino")
-          
-          # 3. Ambil folder induk dari file .ino tersebut
           INO_DIR=$(dirname "$INO_PATH")
           
-          # 4. Pindahkan folder tersebut ke root dan beri nama yang sesuai aturan Arduino
-          # Folder harus bernama sama dengan file .ino (GMpro87.devv1.5)
+          # 3. Pindahkan ke folder utama dengan nama yang sesuai aturan Arduino
           mv "$INO_DIR" ./GMpro87.devv1.5
           
-          # Cek isi folder untuk memastikan struktur internal (src, data, dll) tetap terjaga
-          echo "Struktur folder setelah dirapikan:"
+          # 4. PERBAIKAN OTOMATIS: Mengubah titik (.) menjadi (_) pada file config
+          # Ini memperbaiki error: missing ')' after "defined"
+          if [ -f "./GMpro87.devv1.5/A_config.h" ]; then
+            sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
+            echo "A_config.h berhasil diperbaiki secara otomatis."
+          fi
+          
+          # Cek isi folder untuk memastikan struktur benar
           ls -R GMpro87.devv1.5
 
       - name: Install Spacehuhn Deauther SDK
@@ -39,23 +41,19 @@ jobs:
 
       - name: Install Libraries Automatically
         run: |
-          # Install SimpleCLI
+          # Install library pendukung
           arduino-cli lib install "SimpleCLI"
-          
-          # Install ArduinoJson versi 5.13.5 (Penting: Jangan versi 6/7)
           arduino-cli lib install "ArduinoJson@5.13.5"
-          
-          # List library untuk memastikan sudah terpasang
           arduino-cli lib list
 
       - name: Compile GMpro Firmware
         run: |
-          # Kompilasi menggunakan SDK Deauther dengan Flash 4MB
+          # Kompilasi ke file .bin (ESP8266 4MB)
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
           ./GMpro87.devv1.5 --output-dir ./build
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-Deauther-Binary
+          name: GMpro87-v1.5-Fixed-Binary
           path: ./build/*.bin

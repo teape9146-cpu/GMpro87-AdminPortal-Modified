@@ -18,21 +18,19 @@ jobs:
           INO_PATH=$(find tmp_extract -name "GMpro87.devv1.5.ino")
           INO_DIR=$(dirname "$INO_PATH")
           mv "$INO_DIR" ./GMpro87.devv1.5
+          # Hapus file patch yang bikin error linking
           rm -f ./GMpro87.devv1.5/wifi_patch_onnotfound.cpp
 
-      - name: Fix Code Logic
+      - name: Fix Code (Brute Force Mode)
         run: |
-          # 1. Fix Macro Name (Titik ke Underscore)
-          sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
-          
-          # 2. Tambahkan deklarasi extern dan logika onNotFound langsung ke .ino
-          # Pakai webServer (sesuai standar Deauther v2)
-          sed -i '1i #include <ESP8266WebServer.h>\nextern ESP8266WebServer webServer;' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
-          
-          # 3. Sisipkan perintah di dalam setup(). Kita pakai [&] supaya webServer bisa diakses di dalam lambda.
-          sed -i '/void setup()/a \  webServer.onNotFound([&]() { webServer.send(200, "text/html", "Portal GMpro87 Active"); });' ./GMpro87.devv1.5/GMpro87.devv1.5.ino
+          # 1. Benerin macro GMpro87.dev jadi GMpro87_dev di SEMUA file
+          find ./GMpro87.devv1.5 -type f -exec sed -i 's/GMpro87\.dev/GMpro87_dev/g' {} +
 
-          # 4. Fix Pin D3-D8 (GPIO asli)
+          # 2. Suntik variabel yang hilang langsung ke baris paling atas A_config.h
+          # Ini supaya settings.cpp dan file lainnya pasti nemu variabel ini
+          sed -i '1i #define ADMIN_AP_SSID "GMpro87"\n#define ADMIN_PORTAL_ENABLED true' ./GMpro87.devv1.5/A_config.h
+
+          # 3. Fix Pin D3-D8 (GPIO asli) di SEMUA file
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD3\b/0/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD4\b/2/g' {} +
           find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" -o -name "*.cpp" \) -exec sed -i 's/\bD5\b/14/g' {} +
@@ -49,11 +47,12 @@ jobs:
 
       - name: Compile
         run: |
+          # Fokus compile tanpa modifikasi server dulu biar dapet .bin nya
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
           ./GMpro87.devv1.5 --output-dir ./build
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-v1.5-Fixed-Final
+          name: GMpro87-v1.5-Fixed-Binary
           path: ./build/*.bin

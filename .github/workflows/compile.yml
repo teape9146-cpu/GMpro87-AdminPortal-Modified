@@ -14,25 +14,24 @@ jobs:
 
       - name: Extract, Prepare and Fix Code
         run: |
-          # 1. Ekstrak ZIP ke folder sementara
+          # 1. Ekstrak ZIP
           unzip -o GMpro87-AdminPortal-Modified.zip -d tmp_extract
-          
-          # 2. Cari lokasi file .ino utama
           INO_PATH=$(find tmp_extract -name "GMpro87.devv1.5.ino")
           INO_DIR=$(dirname "$INO_PATH")
-          
-          # 3. Pindahkan ke folder utama dengan nama yang sesuai aturan Arduino
           mv "$INO_DIR" ./GMpro87.devv1.5
           
-          # 4. PERBAIKAN OTOMATIS: Mengubah titik (.) menjadi (_) pada file config
-          # Ini memperbaiki error: missing ')' after "defined"
-          if [ -f "./GMpro87.devv1.5/A_config.h" ]; then
-            sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
-            echo "A_config.h berhasil diperbaiki secara otomatis."
-          fi
+          # 2. FIX: Ubah titik (.) jadi underscore (_) di A_config.h
+          sed -i 's/GMpro87\.dev/GMpro87_dev/g' ./GMpro87.devv1.5/A_config.h
           
-          # Cek isi folder untuk memastikan struktur benar
-          ls -R GMpro87.devv1.5
+          # 3. FIX: Ubah Pin D3-D7 menjadi GPIO asli agar Generic ESP8266 paham
+          # Kita lakukan di semua file .h dan .ino
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD3\b/0/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD4\b/2/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD5\b/14/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD6\b/12/g' {} +
+          find ./GMpro87.devv1.5 -type f \( -name "*.h" -o -name "*.ino" \) -exec sed -i 's/\bD7\b/13/g' {} +
+          
+          echo "Perbaikan Pin D3-D7 selesai."
 
       - name: Install Spacehuhn Deauther SDK
         run: |
@@ -41,19 +40,18 @@ jobs:
 
       - name: Install Libraries Automatically
         run: |
-          # Install library pendukung
           arduino-cli lib install "SimpleCLI"
           arduino-cli lib install "ArduinoJson@5.13.5"
           arduino-cli lib list
 
       - name: Compile GMpro Firmware
         run: |
-          # Kompilasi ke file .bin (ESP8266 4MB)
+          # Kompilasi menggunakan FQBN stabil
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
           ./GMpro87.devv1.5 --output-dir ./build
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-v1.5-Fixed-Binary
+          name: GMpro87-v1.5-Fixed-Pin-Binary
           path: ./build/*.bin

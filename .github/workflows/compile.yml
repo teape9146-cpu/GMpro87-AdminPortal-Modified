@@ -1,4 +1,3 @@
-
 name: Compile GMpro Deauther Fixed Library
 
 on: [push, workflow_dispatch]
@@ -15,10 +14,9 @@ jobs:
 
       - name: Extract Project ZIP
         run: |
-          # Mengekstrak file project kamu ke folder 'project_source'
+          # Mengekstrak file project utama kamu
           unzip -o GMpro87-AdminPortal-Modified.zip -d project_source
-          # Memindahkan file agar file .ino utama berada di posisi yang benar untuk di-compile
-          # Kita gunakan wildcard (*) agar script otomatis mencari file .ino di dalamnya
+          # Memindahkan isi folder hasil ekstrak ke root agar bisa di-compile
           cp -r project_source/* ./
 
       - name: Install Spacehuhn Deauther SDK
@@ -26,25 +24,27 @@ jobs:
           arduino-cli core update-index --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
           arduino-cli core install deauther:esp8266 --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
 
-      - name: Install Library from Repo Zip
+      - name: Install Libraries Automatically
         run: |
-          mkdir -p /home/runner/Arduino/libraries
+          # Download dan install SimpleCLI versi terbaru
           arduino-cli lib install "SimpleCLI"
           
-          # Pastikan file ArduinoJson-5.13.5.zip juga ada di root repo kamu
-          unzip -o ArduinoJson-5.13.5.zip -d /home/runner/Arduino/libraries/
+          # Download dan install ArduinoJson versi 5.13.5 secara otomatis
+          # Tanda @5.13.5 sangat penting agar tidak error saat compile Deauther
+          arduino-cli lib install "ArduinoJson@5.13.5"
           
-          ls -R /home/runner/Arduino/libraries/
+          # Tampilkan daftar library untuk memastikan sudah terpasang
+          arduino-cli lib list
 
       - name: Compile GMpro Firmware
         run: |
-          # Menggunakan FQBN yang kemarin berhasil
-          # Script akan mencari file .ino utama yang tadi sudah diekstrak
+          # Menggunakan FQBN stabil untuk Deauther
+          # Script akan mencari file .ino yang tadi sudah diekstrak
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
           ./*.ino --output-dir ./build
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
-          name: GMpro87-Modified-Binary
+          name: GMpro87-Deauther-Binary
           path: ./build/*.bin
